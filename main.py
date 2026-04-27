@@ -1,34 +1,43 @@
-import os
-from dotenv import load_dotenv
-from fastapi import FastAPI
-from supabase import create_client, Client
-
-load_dotenv()
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("Missing Supabase URL or Key in .env file!")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# main.py
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from matcher import save_item, find_best_matches # NEW: Import our custom manager!
 
 app = FastAPI(title="Lossie API")
 
+# --- RULES FOR THE FRONTEND ---
+class ItemRequest(BaseModel):
+    title: str
+    description: str
+    category: str 
+
 @app.get("/")
 def read_root():
-    return {"message": "Lossie Backend is running"}
+    return {"message": "Namaste! Lossie Matchmaker is online and SUPER clean!"}
 
-@app.post("/test-db")
-def test_database_connection():
-    dummy_data = {
-        "title": "Secure Milton Bottle",
-        "description": "Testing with .env variables!",
-        "category": "lost"
-    }
-    
+# Upload Endpoint
+@app.post("/add-item")
+def add_new_item(item: ItemRequest):
     try:
-        response = supabase.table("items").insert(dummy_data).execute()
-        return {"status": "Success", "data_saved": response.data}
+        # We just hand the data to the manager!
+        save_item(item.title, item.description, item.category)
+        return {"status": "Success", "message": "Item and AI data saved!"}
+    
     except Exception as e:
-        return {"status": "Failed", "error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Matchmaker Endpoint
+@app.post("/find-matches")
+def find_item_matches(item: ItemRequest):
+    try:
+        # Hand it to the manager, get the results back!
+        response = find_best_matches(item.description, item.category)
+        
+        return {
+            "status": "Success",
+            "matches_found": len(response.data),
+            "results": response.data
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
