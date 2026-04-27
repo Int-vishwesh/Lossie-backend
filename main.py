@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from matcher import save_item, find_best_matches
 from fastapi import FastAPI, HTTPException, UploadFile, File
@@ -18,21 +18,56 @@ def read_root():
 
 # Upload Endpoint
 @app.post("/add-item")
-def add_new_item(item: ItemRequest):
+async def add_new_item(
+    # We use Form(...) to tell FastAPI these are standard form fields, not JSON
+    title: str = Form(...),
+    description: str = Form(...),
+    category: str = Form(...),
+    # makes the photo optional
+    file: UploadFile = File(None) 
+):
     try:
-        # We just hand the data to the manager!
-        save_item(item.title, item.description, item.category)
-        return {"status": "Success", "message": "Item and AI data saved!"}
-    
+        file_bytes = None
+        filename = None
+        content_type = None
+
+        # If the user uploaded, read the bytes
+        if file:
+            allowed_types = ["image/jpeg", "image/png", "image/webp"]
+            if file.content_type not in allowed_types:
+                raise HTTPException(status_code=400, detail="Invalid file type!")
+            
+            file_bytes = await file.read()
+            filename = file.filename
+            content_type = file.content_type
+
+        save_item(title, description, category, file_bytes, filename, content_type)
+        
+        return {"status": "Success", "message": "Multi-modal item saved!"}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # Matchmaker Endpoint
 @app.post("/find-matches")
-def find_item_matches(item: ItemRequest):
+async def find_item_matches(
+    category: str = Form(...),   
+    description: str = Form(None),   
+    file: UploadFile = File(None)       
+):
     try:
-        # Hand it to the manager, get the results back!
-        response = find_best_matches(item.description, item.category)
+        file_bytes = None
+        
+        # check the MIME type and read the bytes
+        if file:
+            allowed_types = ["image/jpeg", "image/png", "image/webp"]
+            if file.content_type not in allowed_types:
+                raise HTTPException(status_code=400, detail="Invalid file type!")
+            file_bytes = await file.read()
+        if not description and not file_bytes:
+            raise HTTPException(status_code=400, detail="Provide a description or an image to search.")
+
+        response = find_best_matches(category, description, file_bytes)
         
         return {
             "status": "Success",
