@@ -1,4 +1,6 @@
 from sentence_transformers import SentenceTransformer
+from PIL import Image # Vision library
+import io
 
 print("starting AI... please wait  ")
 model = SentenceTransformer('clip-ViT-B-32')
@@ -8,6 +10,20 @@ def generate_embedding(text: str) -> list[float]:
     """
     Takes a string of text and returns a 512-dimension vector.
     """
-    # model.encode returns a numpy array, so we convert it to a standard Python list
+    # model.encode returns a numpy array converting it to list
     vector = model.encode(text).tolist()
+    return vector
+
+# ai vision
+def generate_image_embedding(file_bytes: bytes) -> list[float]:
+    """
+    Takes raw image bytes, converts them into a picture, 
+    and generates a 512-number vector from the visual data.
+    """
+    # 1. converting digital bytes into an actual Image object
+    image = Image.open(io.BytesIO(file_bytes))
+    
+    # 2. AI looking and doing the math
+    vector = model.encode(image).tolist()
+    
     return vector
