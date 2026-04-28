@@ -1,5 +1,15 @@
 from db import db, upload_image
 from ai import generate_embedding, generate_image_embedding
+import math
+
+def calculate_similarity(vector1, vector2):
+    """Calculates how closely two AI vectors match (Cosine Similarity) image to math within same user"""
+    dot_product = sum(a * b for a, b in zip(vector1, vector2))
+    magnitude1 = math.sqrt(sum(a * a for a in vector1))
+    magnitude2 = math.sqrt(sum(b * b for b in vector2))
+    if magnitude1 == 0 or magnitude2 == 0:
+        return 0.0
+    return dot_product / (magnitude1 * magnitude2)
 
 def save_item(title: str, description: str, category: str, file_bytes: bytes = None, filename: str = None, content_type: str = None):
     """Generates AI numbers for both text and images, then saves to Supabase."""
@@ -25,26 +35,27 @@ def save_item(title: str, description: str, category: str, file_bytes: bytes = N
     return db.table("items").insert(db_data).execute()
 
 
-def find_best_matches(category: str, description: str = None, file_bytes: bytes = None):
-    """Generates a search vector (from image OR text) and finds the highest match."""
+def find_best_matches(category: str, description: str, file_bytes: bytes = None):
+    """Calculates both Text and Image vectors and runs a 4-Way Match."""
     
-    # decide which vector to use. 
+    # Text mandatory
+    search_text_vector = generate_embedding(description)
+    
+    # optional Image 
     if file_bytes:
-        search_vector = generate_image_embedding(file_bytes)
-    # if no photo use text description
-    elif description:
-        search_vector = generate_embedding(description)
+        search_image_vector = generate_image_embedding(file_bytes)
     else:
-        raise ValueError("You must provide either a description or an image to search!")
+        search_image_vector = [0.0] * 512 
 
-    # lost vs found
     target_search_category = "found" if category.lower() == "lost" else "lost"
     
+    # Send BOTH
     return db.rpc(
         "match_items", 
         {
-            "search_vector": search_vector,
-            "match_threshold": 0.85, 
+            "search_text_vector": search_text_vector,
+            "search_image_vector": search_image_vector,
+            "match_threshold": 0.85,
             "match_count": 5,        
             "search_category": target_search_category
         }

@@ -51,21 +51,17 @@ async def add_new_item(
 # Matchmaker Endpoint
 @app.post("/find-matches")
 async def find_item_matches(
-    category: str = Form(...),   
-    description: str = Form(None),   
-    file: UploadFile = File(None)       
+    category: str = Form(...),
+    description: str = Form(...),
+    file: UploadFile = File(None) # Image optional
 ):
     try:
         file_bytes = None
-        
-        # check the MIME type and read the bytes
         if file:
             allowed_types = ["image/jpeg", "image/png", "image/webp"]
             if file.content_type not in allowed_types:
                 raise HTTPException(status_code=400, detail="Invalid file type!")
             file_bytes = await file.read()
-        if not description and not file_bytes:
-            raise HTTPException(status_code=400, detail="Provide a description or an image to search.")
 
         response = find_best_matches(category, description, file_bytes)
         
@@ -93,8 +89,6 @@ async def handle_image_upload(file: UploadFile = File(...)):
     try:
         # Reading raw pixels
         file_bytes = await file.read()
-        
-        # Pass to db.py function
         image_url = upload_image(
             file_bytes=file_bytes,
             original_filename=file.filename,
