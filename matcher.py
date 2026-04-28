@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from db import db, upload_image
 from ai import generate_embedding, generate_image_embedding
 import math
@@ -11,10 +12,10 @@ def calculate_similarity(vector1, vector2):
         return 0.0
     return dot_product / (magnitude1 * magnitude2)
 
+
 def save_item(title: str, description: str, category: str, file_bytes: bytes = None, filename: str = None, content_type: str = None):
-    """Generates AI numbers for both text and images, then saves to Supabase."""
     
-    # Text Math 
+    # text math
     text_vector = generate_embedding(description)
     
     db_data = {
@@ -24,14 +25,28 @@ def save_item(title: str, description: str, category: str, file_bytes: bytes = N
         "text_embedding": text_vector
     }
     
-    # Image Math
+    # 35% Bouncer
     if file_bytes and filename and content_type:
-        image_url = upload_image(file_bytes, filename, content_type)
         image_vector = generate_image_embedding(file_bytes)
         
+        # Consistency Bouncer
+        consistency_score = calculate_similarity(text_vector, image_vector)
+        print(f"Bouncer Score: {consistency_score}")
+        
+        if consistency_score < 0.35:
+            # reject upload entirely
+            raise HTTPException(
+                status_code=400, 
+                detail="Quality Alert: Your photo does not clearly match your description. Please upload a clearer photo or leave the image empty!"
+            )
+        # ----------------------------------
+
+        # If it passes the bouncer, upload to cloud and save to DB
+        image_url = upload_image_to_storage(file_bytes, filename, content_type)
         db_data["image_url"] = image_url
         db_data["image_embedding"] = image_vector
         
+    # 3. Save everything to the warehouse
     return db.table("items").insert(db_data).execute()
 
 
