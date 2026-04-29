@@ -20,10 +20,10 @@ def generate_image_embedding(file_bytes: bytes) -> list[float]:
     Takes raw image bytes, converts them into a picture, 
     and generates a 512-number vector from the visual data.
     """
-    # 1. converting digital bytes into an actual Image object
+    # digital bytes into actual Image 
     image = Image.open(io.BytesIO(file_bytes))
     
-    # 2. AI looking and doing the math
+    # ai looking and doing math
     vector = model.encode(image).tolist()
     
     return vector

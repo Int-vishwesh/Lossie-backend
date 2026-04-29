@@ -45,6 +45,9 @@ async def add_new_item(
         
         return {"status": "Success", "message": "Multi-modal item saved!"}
 
+    # Let intentional 400 errors pass through cleanly!
+    except HTTPException as e:
+        raise e 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -71,6 +74,8 @@ async def find_item_matches(
             "results": response.data
         }
         
+    except HTTPException as e:
+        raise e 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

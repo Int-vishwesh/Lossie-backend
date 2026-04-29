@@ -33,7 +33,7 @@ def save_item(title: str, description: str, category: str, file_bytes: bytes = N
         consistency_score = calculate_similarity(text_vector, image_vector)
         print(f"Bouncer Score: {consistency_score}")
         
-        if consistency_score < 0.35:
+        if consistency_score < 0.30:
             # reject upload entirely
             raise HTTPException(
                 status_code=400, 
@@ -41,12 +41,11 @@ def save_item(title: str, description: str, category: str, file_bytes: bytes = N
             )
         # ----------------------------------
 
-        # If it passes the bouncer, upload to cloud and save to DB
-        image_url = upload_image_to_storage(file_bytes, filename, content_type)
+        # when passes the bouncer
+        image_url = upload_image(file_bytes, filename, content_type)
         db_data["image_url"] = image_url
         db_data["image_embedding"] = image_vector
         
-    # 3. Save everything to the warehouse
     return db.table("items").insert(db_data).execute()
 
 
