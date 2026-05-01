@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from matcher import save_item, find_best_matches
 from fastapi import FastAPI, HTTPException, UploadFile, File
@@ -6,6 +7,13 @@ from db import db, upload_image
 
 app = FastAPI(title="Lossie API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"], # Next.js app
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # --- frontend recieving format ---
 class ItemRequest(BaseModel):
     title: str
@@ -19,11 +27,9 @@ def read_root():
 # Upload Endpoint
 @app.post("/add-item")
 async def add_new_item(
-    # We use Form(...) to tell FastAPI these are standard form fields, not JSON
     title: str = Form(...),
     description: str = Form(...),
     category: str = Form(...),
-    # makes the photo optional
     file: UploadFile = File(None) 
 ):
     try:
@@ -31,23 +37,31 @@ async def add_new_item(
         filename = None
         content_type = None
 
-        # If the user uploaded, read the bytes
         if file:
             allowed_types = ["image/jpeg", "image/png", "image/webp"]
             if file.content_type not in allowed_types:
                 raise HTTPException(status_code=400, detail="Invalid file type!")
-            
             file_bytes = await file.read()
             filename = file.filename
             content_type = file.content_type
 
         save_item(title, description, category, file_bytes, filename, content_type)
         
-        return {"status": "Success", "message": "Multi-modal item saved!"}
+        matches_response = find_best_matches(category, description, file_bytes)
+        
+        if matches_response and hasattr(matches_response, 'data') and len(matches_response.data) > 0:
+            best_match = matches_response.data[0]
+            
+            # update the status!
+            if best_match.get('similarity', 0) > 0.85:
+                match_id = best_match['id']
+                db.table("items").update({"status": "matched"}).eq("id", match_id).execute()
+                db.table("items").update({"status": "matched"}).eq("title", title).eq("description", description).execute()
 
-    # Let intentional 400 errors pass through cleanly!
+        return {"status": "Success", "message": "Item saved and auto-scanned!"}
+
     except HTTPException as e:
-        raise e 
+        raise e  
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -106,5 +120,16 @@ async def handle_image_upload(file: UploadFile = File(...)):
             "image_url": image_url
         }
         
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# showing item in frontend
+@app.get("/items")
+async def get_all_items():
+    try:
+        # We added "status" to the select list right here! 👇
+        response = db.table("items").select("id, title, description, category, image_url, status").execute()
+        return {"status": "Success", "data": response.data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
