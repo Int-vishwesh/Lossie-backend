@@ -93,6 +93,34 @@ async def find_item_matches(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Feed Search page endpoint
+@app.post("/search-feed")
+async def search_feed_images(
+    category: str = Form(...),
+    file: UploadFile = File(...) # Image is REQUIRED here
+):
+    try:
+        allowed_types = ["image/jpeg", "image/png", "image/webp"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail="Invalid file type!")
+        
+        file_bytes = await file.read()
+        
+        target_category = "found" if category.lower() == "lost" else "lost"
+        
+        response = find_best_matches(target_category, "", file_bytes)
+        
+        return {
+            "status": "Success",
+            "matches_found": len(response.data) if response and hasattr(response, 'data') else 0,
+            "results": response.data if response and hasattr(response, 'data') else []
+        }
+
+    except HTTPException as e:
+        raise e 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Image Upload Endpoint
 @app.post("/upload-image")
 async def handle_image_upload(file: UploadFile = File(...)):
