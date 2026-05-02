@@ -30,6 +30,7 @@ async def add_new_item(
     title: str = Form(...),
     description: str = Form(...),
     category: str = Form(...),
+    user_id: str = Form(...),
     file: UploadFile = File(None) 
 ):
     try:
@@ -45,7 +46,7 @@ async def add_new_item(
             filename = file.filename
             content_type = file.content_type
 
-        save_item(title, description, category, file_bytes, filename, content_type)
+        save_item(title, description, category, user_id, file_bytes, filename, content_type)
         
         matches_response = find_best_matches(category, description, file_bytes)
         
@@ -62,6 +63,23 @@ async def add_new_item(
 
     except HTTPException as e:
         raise e  
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# User Profile -> All items
+@app.get("/my-items/{user_id}")
+async def get_user_items(user_id: str):
+    """
+    Fetches only the items reported by the specific logged-in user.
+    """
+    try:
+        response = db.table("items").select("*").eq("user_id", user_id).execute()
+        
+        return {
+            "status": "Success", 
+            "data": response.data
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

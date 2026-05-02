@@ -13,7 +13,7 @@ def calculate_similarity(vector1, vector2):
     return dot_product / (magnitude1 * magnitude2)
 
 
-def save_item(title: str, description: str, category: str, file_bytes: bytes = None, filename: str = None, content_type: str = None):
+def save_item(title: str, description: str, category: str, user_id: str, file_bytes: bytes = None, filename: str = None, content_type: str = None):
     
     # text math
     text_vector = generate_embedding(description)
@@ -22,6 +22,7 @@ def save_item(title: str, description: str, category: str, file_bytes: bytes = N
         "title": title,
         "description": description,
         "category": category.lower(),
+        "user_id": user_id,
         "text_embedding": text_vector
     }
     
