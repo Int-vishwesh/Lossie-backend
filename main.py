@@ -174,8 +174,22 @@ async def handle_image_upload(file: UploadFile = File(...)):
 @app.get("/items")
 async def get_all_items():
     try:
-        # We added "status" to the select list right here! 👇
+        # status
         response = db.table("items").select("id, title, description, category, image_url, status").execute()
         return {"status": "Success", "data": response.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# item detail page endpoint
+@app.get("/item/{item_id}")
+async def get_single_item(item_id: str):
+    try:
+        response = db.table("items").select("*").eq("id", item_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Item not found")
+            
+        return {"status": "Success", "data": response.data[0]}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
