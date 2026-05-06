@@ -2,19 +2,19 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from matcher import save_item, find_best_matches
-from fastapi import FastAPI, HTTPException, UploadFile, File
 from db import db, upload_image
 
 app = FastAPI(title="Lossie API")
 
+# 🔥 CORS FIX: Allows your Vercel frontend to talk to HF
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://lossie.vercel.app"], # frontend
+    allow_origins=["*"], # I changed this to "*" just to guarantee it doesn't block you!
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# --- frontend recieving format ---
+
 class ItemRequest(BaseModel):
     title: str
     description: str
@@ -30,6 +30,7 @@ async def add_new_item(
     title: str = Form(...),
     description: str = Form(...),
     category: str = Form(...),
+    user_id: str = Form(...), # ✅ PUTTING USER_ID BACK IN!
     file: UploadFile = File(None) 
 ):
     try:
@@ -45,7 +46,8 @@ async def add_new_item(
             filename = file.filename
             content_type = file.content_type
 
-        save_item(title, description, category, file_bytes, filename, content_type)
+        # ✅ Added user_id back to save_item
+        save_item(title, description, category, user_id, file_bytes, filename, content_type)
         
         matches_response = find_best_matches(category, description, file_bytes)
         
@@ -65,12 +67,29 @@ async def add_new_item(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ✅ PUTTING THE DASHBOARD ENDPOINT BACK IN! (Fixes the 404 Error)
+@app.get("/my-items/{user_id}")
+async def get_user_items(user_id: str):
+    """
+    Fetches only the items reported by the specific logged-in user.
+    """
+    try:
+        response = db.table("items").select("*").eq("user_id", user_id).execute()
+        
+        return {
+            "status": "Success", 
+            "data": response.data
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Matchmaker Endpoint
 @app.post("/find-matches")
 async def find_item_matches(
     category: str = Form(...),
     description: str = Form(...),
-    file: UploadFile = File(None) # Image optional
+    file: UploadFile = File(None) 
 ):
     try:
         file_bytes = None
@@ -97,7 +116,7 @@ async def find_item_matches(
 @app.post("/search-feed")
 async def search_feed_images(
     category: str = Form(...),
-    file: UploadFile = File(...) # Image is REQUIRED here
+    file: UploadFile = File(...) 
 ):
     try:
         allowed_types = ["image/jpeg", "image/png", "image/webp"]
@@ -125,7 +144,6 @@ async def search_feed_images(
 @app.post("/upload-image")
 async def handle_image_upload(file: UploadFile = File(...)):
     
-    # check the MIME type.
     allowed_types = ["image/jpeg", "image/png", "image/webp"]
     if file.content_type not in allowed_types:
         raise HTTPException(
@@ -134,7 +152,6 @@ async def handle_image_upload(file: UploadFile = File(...)):
         )
 
     try:
-        # Reading raw pixels
         file_bytes = await file.read()
         image_url = upload_image(
             file_bytes=file_bytes,
@@ -156,8 +173,21 @@ async def handle_image_upload(file: UploadFile = File(...)):
 @app.get("/items")
 async def get_all_items():
     try:
-        # We added "status" to the select list right here! 👇
-        response = db.table("items").select("id, title, description, category, image_url, status").execute()
+        response = db.table("items").select("*").execute()
         return {"status": "Success", "data": response.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# item detail page endpoint
+@app.get("/item/{item_id}")
+async def get_single_item(item_id: str):
+    try:
+        response = db.table("items").select("*").eq("id", item_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            raise HTTPException(status_code=404, detail="Item not found")
+            
+        return {"status": "Success", "data": response.data[0]}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
