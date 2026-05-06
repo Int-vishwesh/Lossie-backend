@@ -9,7 +9,7 @@ app = FastAPI(title="Lossie API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], # Next.js app
+    allow_origins=["https://lossie.vercel.app"], # frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
